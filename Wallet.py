@@ -27,8 +27,8 @@ class Wallet:
         vk_string = self.public_key.to_string().hex()
         
         #Check whether the 'Keys' directory exists, create if doesn't
-        File.validate_directory( self.KEY_PATH )
-        final_path = File.get_directory( self.KEY_PATH )
+        File.create_or_validate( self.KEY_PATH)
+        final_path = File.get_current_dir( self.KEY_PATH )
         
         with open( os.path.join(final_path, "keys.txt"), 'w') as key_file:
             key_file.write( f'Public key: {vk_string} \nPrivate key: {sk_string}')
