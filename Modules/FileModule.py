@@ -19,7 +19,7 @@ class File:
         if not os.path.isdir( final_path ):
             os.mkdir( additional_dir )
             
-            
+
     #Returns the current directory joined with the parameter
     @staticmethod
     def get_current_dir(additional_dir):
