@@ -11,6 +11,7 @@ SOCK_IP = sock.get_socket_ip()
 SOCK_PORT = 8330
 BUFFER_SIZE = 1024
 
+
 conn = sock.set_listening_socket(SOCK_IP, SOCK_PORT)
 
 with conn:
@@ -22,7 +23,11 @@ with conn:
             break
 
         elif data_decoded == GET_CHAIN_DATA:
-            conn.sendall( bytes("TESTDATA", encoding="utf-8"))
+            conn.sendall( bytes('', encoding="utf-8"))
+            break
+        else:
+            conn.sendall(bytes('', encoding="utf-8"))
+            break
             
          
        

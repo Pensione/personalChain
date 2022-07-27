@@ -12,6 +12,47 @@ from Network.Socket import Socket as sock
 
 from ecdsa import SigningKey, NIST256p, VerifyingKey
 
+def get_miner_address():
+    File.create_or_validate( TEMP_PATH )
+    temp_dir = File.get_current_dir( TEMP_PATH )
+            
+            #Checks whether the miner's address is already present in the miner_pk.json file
+    addr_exists = File.check_file_existence( temp_dir, MINER_ADDRESS_FILE)
+            
+    if addr_exists:
+        file = open( os.path.join( temp_dir, MINER_ADDRESS_FILE ), "r")
+        json_file = json.load( file )
+        miner_addr = json_file["miner_address"]
+                
+    else:
+        miner_addr = None
+                   
+    return miner_addr
+
+def set_miner_address():
+    miner_addr = str(input())
+    addr_valid = Wallet.validate_public_key( miner_addr )
+                
+    if addr_valid:
+        json_dict = {"miner_address":miner_addr}
+        json_string = json.dumps( json_dict )
+        file = open( os.path.join( temp_dir, MINER_ADDRESS_FILE), "w")
+        file.write( json_string )
+    else:
+        print("Invalid address!")
+        user_option = 0
+
+#Prints the insides of the entire block to the console
+def print_block_data(block):
+    rootData = {}
+    rootData["block_header"] = block.block_header
+    rootData["block_size"] = block.BLOCK_SIZE
+    rootData["transaction_count"] = block.transaction_count
+    rootData["transactions"] = block.transactions
+    jsonData = json.dumps(rootData, indent = 4)
+    print(jsonData)
+
+
 #Constants(Directory e.t.c.)
 TEMP_PATH = "temp"
 MINER_ADDRESS_FILE = "miner_pk.json"
@@ -48,6 +89,7 @@ if __name__ == "__main__":
             3. Exit
             
             """))
+        
         user_option = str(input())
         
         if user_option == '1':
@@ -63,10 +105,13 @@ if __name__ == "__main__":
         
             #Mining itself
             block_data = sock.get_data(MINER_IP, PORT, GET_CHAIN_DATA)
-            if not block_data:
+            print(f'Block data: {block_data}')
+            if not block_data or block_data == '':
                 chain = Blockchain()
-                chain.generate_genesis_block()
-
+                genesis_block = chain.generate_genesis_block(miner_address)
+                chain.publish_block(genesis_block)
+                print_block_data(genesis_block)
+                user_option = '0'
             pass
             
     
@@ -76,33 +121,3 @@ if __name__ == "__main__":
         elif user_option == '3':
             sys.exit()
             
-            
-def get_miner_address():
-    File.create_or_validate( TEMP_PATH )
-    temp_dir = File.get_current_dir( TEMP_PATH )
-            
-            #Checks whether the miner's address is already present in the miner_pk.json file
-    addr_exists = File.check_file_existence( temp_dir, MINER_ADDRESS_FILE)
-            
-    if addr_exists:
-        file = open( os.path.join( temp_dir, MINER_ADDRESS_FILE ), "r")
-        json_file = json.load( file )
-        miner_addr = json_file["miner_address"]
-                
-    else:
-        miner_addr = None
-                   
-    return miner_addr
-
-def set_miner_address():
-    miner_addr = str(input())
-    addr_valid = Wallet.validate_public_key( miner_addr )
-                
-    if addr_valid:
-        json_dict = {"miner_address":miner_addr}
-        json_string = json.dumps( json_dict )
-        file = open( os.path.join( temp_dir, MINER_ADDRESS_FILE), "w")
-        file.write( json_string )
-    else:
-        print("Invalid address!")
-        user_option = 0
