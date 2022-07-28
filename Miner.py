@@ -1,10 +1,9 @@
-from datetime import datetime
+from platform import architecture
 import sys
 import textwrap
 import json
 import os
-from Block import Block
-from Chain import Blockchain
+from Chain import Blockchain, Block, Transaction
 
 from Wallet import Wallet
 from Modules.FileModule import File
@@ -12,11 +11,50 @@ from Network.Socket import Socket as sock
 
 from ecdsa import SigningKey, NIST256p, VerifyingKey
 
+
+
+#Constants(Directory e.t.c.)
+TEMP_PATH = "temp"
+MINER_ADDRESS_FILE = "miner_pk.json"
+USER_OPTIONS = ['1', '2', '3']
+
+#Networking constants
+MINER_IP = sock.get_socket_ip()
+TRUSTED_IPS = [MINER_IP, "192.168.81.82", "192.168.81.87", "192.168.81.175"]
+PORT = 8330
+
+#Command constants
+GET_CHAIN_DATA = "GET_CHAIN_DATA"
+GET_PENDING_TRANSACTIONS = "GET_PENDING_TRANSACTIONS"
+POST_TRANSACTION = "POST_TRANSACTION"
+
+#Variables
+user_option = 0
+
+
+def mine(blockchain, miner_address):
+    while True:
+        block_result = blockchain.mine()
+        chain = blockchain.chain
+        #Fetch the list of pending transactions from the available nodes
+        pending_transactions = sock.get_data(MINER_IP, PORT, GET_PENDING_TRANSACTIONS)
+        transaction_list = []
+        #Generate the system -> miner transaction 
+        coinbase_transaction = Transaction("SYSTEM", miner_address, blockchain.block_reward)
+        transaction_list.append( coinbase_transaction )
+        if pending_transactions:
+            transaction_list.append( transaction for transaction in pending_transactions)
+            
+        new_block = blockchain.generate_block(transaction_list, block_result["nonce"])
+        blockchain.publish_block(new_block)
+        print_block_data(new_block)
+
+#Fetches the miner's address from miner_pk.json file
 def get_miner_address():
     File.create_or_validate( TEMP_PATH )
     temp_dir = File.get_current_dir( TEMP_PATH )
             
-            #Checks whether the miner's address is already present in the miner_pk.json file
+    #Checks whether the miner's address is already present in the miner_pk.json file
     addr_exists = File.check_file_existence( temp_dir, MINER_ADDRESS_FILE)
             
     if addr_exists:
@@ -29,6 +67,7 @@ def get_miner_address():
                    
     return miner_addr
 
+#Validates the integrity of miner's address and records it to the miner_pk.json file
 def set_miner_address():
     miner_addr = str(input())
     addr_valid = Wallet.validate_public_key( miner_addr )
@@ -48,34 +87,26 @@ def print_block_data(block):
     rootData["block_header"] = block.block_header
     rootData["block_size"] = block.BLOCK_SIZE
     rootData["transaction_count"] = block.transaction_count
-    rootData["transactions"] = block.transactions
+    rootData["transactions"] = []
+    transaction_list = block.transactions
+    for entry in transaction_list:
+        transaction = entry.__dict__
+        rootData["transactions"].append(transaction)
+    block_index = block.block_index
+    
     jsonData = json.dumps(rootData, indent = 4)
-    print(jsonData)
-
-
-#Constants(Directory e.t.c.)
-TEMP_PATH = "temp"
-MINER_ADDRESS_FILE = "miner_pk.json"
-USER_OPTIONS = ['1', '2', '3']
-
-#Networking constants
-TRUSTED_IPS = ["192.168.81.82", "192.168.81.87", "192.168.81.175"]
-MINER_IP = sock.get_socket_ip()
-PORT = 8330
-
-#Command constants
-GET_CHAIN_DATA = "GET_CHAIN_DATA"
-
-
-#Variables
-user_option = 0
+    print(f'\nBlock {block_index}:\n{jsonData}')
+    
+    
+def get_pending_transactions():
+    pass
 
 
 if __name__ == "__main__":
     
     
     print(textwrap.dedent("""\
-                ***************** Welcome to the NodeChain 1.0! *****************
+                ***************** Welcome to the PollyChain 1.0! *****************
                 You are currently using the mining software. Before you start mining you should first generate a wallet address.
                 If you want to proceed to the wallet - please open Wallet.py.
                 
@@ -105,13 +136,19 @@ if __name__ == "__main__":
         
             #Mining itself
             block_data = sock.get_data(MINER_IP, PORT, GET_CHAIN_DATA)
-            print(f'Block data: {block_data}')
+            
             if not block_data or block_data == '':
                 chain = Blockchain()
                 genesis_block = chain.generate_genesis_block(miner_address)
                 chain.publish_block(genesis_block)
                 print_block_data(genesis_block)
-                user_option = '0'
+                    
+                mine(chain, miner_address)
+                
+                
+            else:
+                pass
+            
             pass
             
     

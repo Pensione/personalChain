@@ -10,6 +10,8 @@ CONNECTION_COUNT = 5
 
 #Command constants
 GET_CHAIN_DATA = "GET_CHAIN_DATA"
+GET_PENDING_TRANSACTIONS = "GET_PENDING_TRANSACTIONS"
+POST_TRANSACTION = "POST_TRANSACTION"
 
 class Socket:
     
@@ -25,12 +27,18 @@ class Socket:
         return socket.gethostbyname(socket.gethostname())
     
     @staticmethod
-    def get_data(sock_ip, sock_port, command):
+    def get_data(sock_ip, sock_port, command, **kwargs):
         with socket.socket( socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((sock_ip, sock_port))
-            s.sendall(bytes(command, encoding="utf-8"))
-            data = s.recv(1024)
-            data_decoded = data.decode(encoding="utf-8")
+            if "timeout" in kwargs:
+                s.settimeout(timeout)
+            try:
+                s.connect((sock_ip, sock_port))
+                s.sendall(bytes(command, encoding="utf-8"))
+                data = s.recv(1024)
+                data_decoded = data.decode(encoding="utf-8")
+            except:
+                data_decoded = ''
+            s.close()
             return data_decoded
     
     @staticmethod

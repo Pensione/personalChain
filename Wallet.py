@@ -2,7 +2,6 @@ from datetime import datetime
 import sys
 import textwrap
 import os
-import pathlib
 
 from ecdsa import SigningKey, NIST256p, VerifyingKey
 from Modules.FileModule import File
@@ -51,7 +50,7 @@ if __name__ == "__main__":
     current_option = 0
     user_options = ['0', '1', '2', '3']
     print(
-        """ ***************** Welcome to the NodeChain 1.0! *****************\n
+        """ ***************** Welcome to the PollyChain 1.0! *****************\n
 What would you like to do? Press and enter the according number on your keyboard!
         """  
     )
