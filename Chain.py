@@ -13,7 +13,7 @@ class Blockchain:
     def __init__(self):
         self.chain = []
         self.pending_transactions = []
-        self.difficulty = 1
+        self.difficulty = 40
         self.block_reward = 100
         self.VERSION = "1.0; PollyChain"
     
@@ -42,13 +42,12 @@ class Blockchain:
     #Generating a 32-bit nonce
     def generate_nonce(self):
         random.seed()
-        return random.randint(0, (2**31)-1)
+        return random.randint(0, (2**31))
     
     def mine(self):
         #Initialize random parameters for the target hash
         random.seed()
-        target = random.randint(0, 2**(256 - self.difficulty))
-        block_mined = False
+        target = int(hash.sha256(bytes(str(random.randint(0, 2**(256 - self.difficulty))), encoding="utf-8")).hexdigest(), base = 16)
         
         #Initialize random parameters for the nonce
         nonce = self.generate_nonce()

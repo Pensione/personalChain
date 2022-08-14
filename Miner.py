@@ -7,7 +7,7 @@ from Chain import Blockchain, Block, Transaction
 
 from Wallet import Wallet
 from Modules.FileModule import File
-from Network.Socket import Socket as sock
+from Network.Node import Socket
 
 from ecdsa import SigningKey, NIST256p, VerifyingKey
 
@@ -19,7 +19,8 @@ MINER_ADDRESS_FILE = "miner_pk.json"
 USER_OPTIONS = ['1', '2', '3']
 
 #Networking constants
-MINER_IP = sock.get_socket_ip()
+sock = Socket()
+MINER_IP = sock.SOCKET_IP
 TRUSTED_IPS = [MINER_IP, "192.168.81.82", "192.168.81.87", "192.168.81.175"]
 PORT = 8330
 
