@@ -1,21 +1,20 @@
-from platform import architecture
-import sys
 import textwrap
 import json
-import os
+import os, sys
+from unittest import result
+sys.path.append(os.path.abspath("modules"))
+
 from Chain import Blockchain, Block, Transaction
 
 from Wallet import Wallet
-from Modules.FileModule import File
-from Network.Node import Socket
+from FileModule import File
+from Node import Socket
 
 from ecdsa import SigningKey, NIST256p, VerifyingKey
 
 
 
 #Constants(Directory e.t.c.)
-TEMP_PATH = "temp"
-MINER_ADDRESS_FILE = "miner_pk.json"
 USER_OPTIONS = ['1', '2', '3']
 
 #Networking constants
@@ -26,61 +25,40 @@ PORT = 8330
 
 #Command constants
 GET_CHAIN_DATA = "GET_CHAIN_DATA"
+GET_BLOCK_DATA = "GET_BLOCK_DATA"
 GET_PENDING_TRANSACTIONS = "GET_PENDING_TRANSACTIONS"
+POST_BLOCK = "POST_BLOCK"
 POST_TRANSACTION = "POST_TRANSACTION"
 
 #Variables
 user_option = 0
 
 
-def mine(blockchain, miner_address):
+def mine(blockchain, miner_address, genesis_required):
     while True:
+        if genesis_required:
+            genesis_block = blockchain.generate_genesis_block(miner_address)
+            blockchain.publish_block(genesis_block)
+            genesis_required = False
+            #print_block_data(genesis_block)
+            
         block_result = blockchain.mine()
-        chain = blockchain.chain
         #Fetch the list of pending transactions from the available nodes
-        pending_transactions = sock.get_data(MINER_IP, PORT, GET_PENDING_TRANSACTIONS)
+        pending_transactions = sock.execute_command(MINER_IP, PORT, GET_PENDING_TRANSACTIONS)
         transaction_list = []
-        #Generate the system -> miner transaction 
+        #Generate the system -> miner transaction
         coinbase_transaction = Transaction("SYSTEM", miner_address, blockchain.block_reward)
         transaction_list.append( coinbase_transaction )
         if pending_transactions:
             transaction_list.append( transaction for transaction in pending_transactions)
             
         new_block = blockchain.generate_block(transaction_list, block_result["nonce"])
+        print(new_block)
+        sock.execute_command(MINER_IP, PORT, POST_BLOCK, message_body = new_block)
         blockchain.publish_block(new_block)
+        
+        
         print_block_data(new_block)
-
-#Fetches the miner's address from miner_pk.json file
-def get_miner_address():
-    File.create_or_validate( TEMP_PATH )
-    temp_dir = File.get_current_dir( TEMP_PATH )
-            
-    #Checks whether the miner's address is already present in the miner_pk.json file
-    addr_exists = File.check_file_existence( temp_dir, MINER_ADDRESS_FILE)
-            
-    if addr_exists:
-        file = open( os.path.join( temp_dir, MINER_ADDRESS_FILE ), "r")
-        json_file = json.load( file )
-        miner_addr = json_file["miner_address"]
-                
-    else:
-        miner_addr = None
-                   
-    return miner_addr
-
-#Validates the integrity of miner's address and records it to the miner_pk.json file
-def set_miner_address():
-    miner_addr = str(input())
-    addr_valid = Wallet.validate_public_key( miner_addr )
-                
-    if addr_valid:
-        json_dict = {"miner_address":miner_addr}
-        json_string = json.dumps( json_dict )
-        file = open( os.path.join( temp_dir, MINER_ADDRESS_FILE), "w")
-        file.write( json_string )
-    else:
-        print("Invalid address!")
-        user_option = 0
 
 #Prints the insides of the entire block to the console
 def print_block_data(block):
@@ -95,8 +73,12 @@ def print_block_data(block):
         rootData["transactions"].append(transaction)
     block_index = block.block_index
     
-    jsonData = json.dumps(rootData, indent = 4)
-    print(f'\nBlock {block_index}:\n{jsonData}')
+    json_data = json.dumps(rootData, indent = 4)
+    f = open("./Keys/sample.json","r")
+    current_data = f.read()
+    f = open("./Keys/sample.json", "w")
+    f.write(current_data + str('\n'+json_data))
+    f.close()
     
     
 def get_pending_transactions():
@@ -123,32 +105,38 @@ if __name__ == "__main__":
             """))
         
         user_option = str(input())
+        wallet = Wallet()
         
         if user_option == '1':
             
-            miner_address = get_miner_address()
-            if not miner_address:
+            address_exists = wallet.check_key_existence()
+            
+            if not address_exists:
                 print( textwrap.dedent("""\
                     Please enter your wallet's address below.
                     All the funds you recieve from the successfully mined blocks will be sent to that exact address.
                     (You can always change it if necessarry)
                     """))
-                set_miner_address()
-        
-            #Mining itself
-            block_data = sock.get_data(MINER_IP, PORT, GET_CHAIN_DATA)
-            
-            if not block_data or block_data == '':
-                chain = Blockchain()
-                genesis_block = chain.generate_genesis_block(miner_address)
-                chain.publish_block(genesis_block)
-                print_block_data(genesis_block)
+                custom_address = str(input())
+                valid_address = Wallet.validate_public_key( custom_address )
+                
+                if not valid_address:
+                    print( "The address you've entered is in invalid format!")
+                    user_option = 0
+                    continue
                     
-                mine(chain, miner_address)
-                
-                
-            else:
-                pass
+                else:
+                    wallet.set_custom_vk( custom_address )
+                    wallet.save_keys()
+
+            miner_address = wallet.get_vk_hex()
+            
+            #Fetching the initial chain data, to determine whether a genesis block should be created
+            block_data = sock.execute_command(MINER_IP, PORT, GET_BLOCK_DATA)
+            genesis_required = True if (block_data is None or block_data == '') else False
+            chain = Blockchain()
+            mine(chain, miner_address, genesis_required)
+            
             
             pass
             

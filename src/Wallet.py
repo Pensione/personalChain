@@ -1,19 +1,53 @@
 from datetime import datetime
-import sys
-import textwrap
-import os
+import json, pathlib, textwrap
+import os, sys
+sys.path.append(os.path.abspath("modules"))
 
 from ecdsa import SigningKey, NIST256p, VerifyingKey
-from Modules.FileModule import File
+from FileModule import File
 
-class Wallet:
+
+class Wallet(File):
     
     def __init__(self):
-        self.public_key = ''
-        self.private_key = ''
+        self.KEY_PATH = os.path.join(pathlib.Path().resolve(), "Keys")
+        self.public_key = self.fetch_vk_hex()
+        self.private_key = self.fetch_sk_hex()
         self.CURVE = NIST256p
-        self.KEY_PATH = "Keys"
     
+    
+    ###### GETTERS ######
+    def fetch_vk_hex(self):
+        key_exists = self.check_key_existence()
+        if key_exists:
+            with open( os.path.join( self.KEY_PATH, "keys.json"), 'r') as key_file:
+                file_body = json.load( key_file)
+                vk = file_body["PublicKey"]
+                key_file.close()
+        else:
+            vk = ''
+                
+        return vk
+    
+    def fetch_sk_hex(self):
+        key_exists = self.check_key_existence()
+        if key_exists:
+            with open( os.path.join( self.KEY_PATH, "keys.json"), 'r') as key_file:
+                file_body = json.load( key_file)
+                sk = file_body["PrivateKey"]
+                key_file.close()
+        else:
+            sk = ''
+                
+        return sk
+    
+    def get_vk_hex(self):
+        return self.public_key
+
+    def get_sk_hex(self):
+        return self.private_key
+    
+    ##### ######
     
     def create_key_pair(self):
         self.private_key = SigningKey.generate(curve = self.CURVE)
@@ -25,25 +59,41 @@ class Wallet:
         sk_string = self.private_key.to_string().hex()
         vk_string = self.public_key.to_string().hex()
         
-        #Check whether the 'Keys' directory exists, create if doesn't
-        File.create_or_validate( self.KEY_PATH)
-        final_path = File.get_current_dir( self.KEY_PATH )
         
-        with open( os.path.join(final_path, "keys.txt"), 'w') as key_file:
-            key_file.write( f'Public key: {vk_string} \nPrivate key: {sk_string}')
-            key_file.write('\n\nPlease, store your private key securely and never share it to anybody!\nOtherwise it may result in a loss of funds, wallet and identity.')
+        #Check whether the 'Keys' directory exists, create if doesn't
+        File.create_or_validate( self.KEY_PATH )
+        
+        with open( os.path.join(self.KEY_PATH, "keys.json"), 'w') as key_file:
+            bodyDict = {}
+            bodyDict["PublicKey"] = vk_string
+            bodyDict["PrivateKey"] = sk_string
+            bodyDict["Message"] = "Please, store your private key securely and never share it to anybody! Otherwise it may result in a loss of funds, wallet and identity."
+            key_file.write(json.dumps(bodyDict, indent = 4))
             key_file.close()
     
+    #Validates the integrity of an address and records it to the keys.json file
+    def set_custom_vk( self, custom_vk ):
+        byte_key = bytes.fromhex( custom_vk )
+        self.public_key = VerifyingKey.from_string( custom_vk, self.CURVE )
+        
+    #Checks if a key exists in keys.json directory
+    def check_key_existence(self):
+        KEY_FILE_NAME = "keys.json"
+        result = File.check_file_existence( self.KEY_PATH, KEY_FILE_NAME )
+        return True if result else False
+        
     @staticmethod
     def validate_public_key( key ):
         try:
-            key_byte = bytes.fromhex( key )
-            key_validated = VerifyingKey.from_string( key_byte, NIST256p)
+            byte_key = bytes.fromhex( key )
+            key_validated = VerifyingKey.from_string( byte_key, NIST256p)
             valid = True
         except Exception as e:
             valid = False
             
         return valid
+
+
             
 
 if __name__ == "__main__":
