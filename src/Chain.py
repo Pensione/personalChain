@@ -98,7 +98,7 @@ class Blockchain:
     #Method used to validate the passed block's nonce + header hash. Dummy for now
     @staticmethod
     def validate_block( block ):
-        True
+        return True
     
 class Block(Blockchain):
     
