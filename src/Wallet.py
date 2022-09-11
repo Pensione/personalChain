@@ -85,7 +85,7 @@ class Wallet():
             
             try:
                 byte_key = bytes.fromhex( sk )
-                sk = VerifyingKey.from_string( byte_key, self.CURVE )
+                sk = SigningKey.from_string( byte_key, self.CURVE )
             except:
                 sk = None
                 

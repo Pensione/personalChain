@@ -1,13 +1,10 @@
 
-from email import message
-from re import S
-from sre_constants import FAILURE
 import textwrap
 import socket, pickle
 import sys, os
 
 from Chain import Blockchain
-
+from CustomEncryption import *
 
 class Socket:
     
@@ -141,9 +138,15 @@ if __name__ == "__main__":
                             break
                         
                         elif command == POST_TRANSACTION:
-                            pending_transactions.append(data_decoded)
-                            print(pending_transactions)
-                            conn.sendall( bytes(SUCCESS, encoding="utf-8"))
+                            payload = eval( payload )
+                            transaction = pickle.loads( payload["transaction"])
+                            sender = transaction.sender
+                            signature = payload["signature"]
+                            vk = vk_hex_to_bytes(sender, NIST256p)
+                            valid = vk.verify( signature, payload["transaction"] )
+                            response = RESPONSE_SUCCESS if valid else RESPONSE_FAILURE
+                            print(f'\nSender:{transaction.sender}, reciever:{transaction.reciever}, amount:{transaction.amount}, valid:{valid}')
+                            conn.sendall( bytes(response, encoding="utf-8"))
                             continue
                         else:
                             conn.sendall(bytes('NOT A VALID COMMAND', encoding="utf-8"))

@@ -141,8 +141,10 @@ class Transaction(Block):
             self.reciever = reciever
             self.amount = amount
             self.timestamp = str(datetime.now())
-            self.transaction_id = self.create_transaction_id(self.timestamp, self.sender, self.reciever, self.amount)
+            self.transaction_id = self.create_transaction_id()
                         
-        def create_transaction_id(self, timestamp, sender, reciever, amount):
-            transaction_id = hash.sha256(bytes(f'{timestamp};{sender};{reciever};{amount}', encoding="utf-8")).hexdigest()
+        def create_transaction_id(self):
+            transaction_id = hash.sha256(bytes(f'{self.timestamp};{self.sender};{self.reciever};{self.amount}', encoding="utf-8")).hexdigest()
             return transaction_id
+
+        
