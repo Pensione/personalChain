@@ -1,9 +1,10 @@
 
+from email import message
+from re import S
+from sre_constants import FAILURE
 import textwrap
 import socket, pickle
 import sys, os
-sys.path.append(os.path.abspath("modules"))
-print(sys.path)
 
 from Chain import Blockchain
 
@@ -13,7 +14,7 @@ class Socket:
     def __init__(self):
         self.SOCKET_IP = socket.gethostbyname(socket.gethostname())
         self.SOCKET_PORT = 8330
-        self.BUFFER_SIZE = 1024
+        self.BUFFER_SIZE = 64000
         self.CONNECTION_COUNT = 5
     
     @staticmethod
@@ -52,12 +53,13 @@ POST_TRANSACTION = "POST_TRANSACTION"
 POST_BLOCK = "POST_BLOCK"
 
 #Command responses
-SUCCESS = "S"
+RESPONSE_SUCCESS = "S"
+RESPONSE_FAILURE = "F"
 
 #Networking constants
 sock = Socket()
 SOCK_IP = sock.SOCKET_IP
-TRUSTED_IPS = ["192.168.81.82", "192.168.81.87", "192.168.81.175"]
+TRUSTED_IPS = []
 SOCK_PORT = sock.SOCKET_PORT
 BUFFER_SIZE = sock.BUFFER_SIZE
 CONNECTION_COUNT = sock.CONNECTION_COUNT
@@ -66,22 +68,23 @@ CONNECTION_COUNT = sock.CONNECTION_COUNT
 
 if __name__ == "__main__":
     
+    os.system('cls')
     print( textwrap.dedent("""Welcome to the blockhain node software!\n"""))
     
     node_open = True
-    chain = None
+    chain = Blockchain()
     pending_transactions = []
 
     #Trying to fetch the current latest version of the blockchain from a predefined list of trusted nodes
-    for ip in TRUSTED_IPS:
-        try:
-            print(f'Fetching data from: {ip}:{SOCK_PORT}')
-            chain = sock.execute_command(ip, SOCK_PORT, GET_CHAIN_DATA, timeout = 10)
-        except:
-            print("No response from the remote host!\n\n")
-            continue
-        finally:
-            chain = Blockchain() if chain == None or chain == '' else chain
+    #for ip in TRUSTED_IPS:
+    #    try:
+    #        print(f'Fetching data from: {ip}:{SOCK_PORT}')
+    #        chain = sock.execute_command(ip, SOCK_PORT, GET_CHAIN_DATA, timeout = 10)
+    #    except:
+    #        print("No response from the remote host!\n\n")
+    #        continue
+    #    finally:
+    #        chain = Blockchain() if chain == None or chain == '' else chain
         
     
 
@@ -89,12 +92,14 @@ if __name__ == "__main__":
         with socket.socket( socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((SOCK_IP, SOCK_PORT))
             print(f'Binded on: {SOCK_IP}:{SOCK_PORT}')
+            
             s.listen(CONNECTION_COUNT)
             
             conn, address = s.accept()
             
             with conn:
                 while True:
+                    
                     data = conn.recv( BUFFER_SIZE )
                     if not data:
                         continue
@@ -122,13 +127,19 @@ if __name__ == "__main__":
                             break
                             
                         elif command == POST_BLOCK:
+                            #Formats the payload data into an appropriate object structure
                             block = pickle.loads( payload )
+                            
                             if Blockchain.validate_block(block):
                                 chain.publish_block(block)
-                                response_message = "Block posted successfully!"
+                                response_message = RESPONSE_SUCCESS
+                            else:
+                                response_message = RESPONSE_FAILURE
+                                
                             conn.sendall(bytes(response_message, encoding="utf-8"))
                             
-                            continue
+                            break
+                        
                         elif command == POST_TRANSACTION:
                             pending_transactions.append(data_decoded)
                             print(pending_transactions)
