@@ -1,13 +1,11 @@
+from socket import timeout
 import textwrap
 import json
-import os, sys
-from unittest import result
-sys.path.append(os.path.abspath("modules"))
+import os, sys, pathlib, pickle
 
 from Chain import Blockchain, Block, Transaction
 
 from Wallet import Wallet
-from FileModule import File
 from Node import Socket
 
 from ecdsa import SigningKey, NIST256p, VerifyingKey
@@ -16,11 +14,13 @@ from ecdsa import SigningKey, NIST256p, VerifyingKey
 
 #Constants(Directory e.t.c.)
 USER_OPTIONS = ['1', '2', '3']
+KEY_PATH = os.path.join(pathlib.Path().resolve(), "Keys")
+LOG_FILE_NAME = "sample.json"
 
 #Networking constants
 sock = Socket()
 MINER_IP = sock.SOCKET_IP
-TRUSTED_IPS = [MINER_IP, "192.168.81.82", "192.168.81.87", "192.168.81.175"]
+TRUSTED_IPS = [MINER_IP, "192.168.81.82", "192.168.81.87", "192.168.81.175", "172.20.10.4"]
 PORT = 8330
 
 #Command constants
@@ -40,28 +40,36 @@ def mine(blockchain, miner_address, genesis_required):
             genesis_block = blockchain.generate_genesis_block(miner_address)
             blockchain.publish_block(genesis_block)
             genesis_required = False
-            #print_block_data(genesis_block)
-            
+            log_block_data(genesis_block)
+            continue
+
         block_result = blockchain.mine()
+        
         #Fetch the list of pending transactions from the available nodes
-        pending_transactions = sock.execute_command(MINER_IP, PORT, GET_PENDING_TRANSACTIONS)
+        pending_transactions = sock.execute_command(MINER_IP, PORT, GET_PENDING_TRANSACTIONS, timeout = 1)
         transaction_list = []
-        #Generate the system -> miner transaction
+        
+        #Generate the system -> miner transaction and collect transactions from pending_transactions
         coinbase_transaction = Transaction("SYSTEM", miner_address, blockchain.block_reward)
         transaction_list.append( coinbase_transaction )
         if pending_transactions:
             transaction_list.append( transaction for transaction in pending_transactions)
             
-        new_block = blockchain.generate_block(transaction_list, block_result["nonce"])
-        print(new_block)
-        sock.execute_command(MINER_IP, PORT, POST_BLOCK, message_body = new_block)
+        new_block = blockchain.generate_block(transaction_list, block_result)
+        
+        #Convert the object data into a string before sending it as a bytestream
+        block_data_string = pickle.dumps(new_block)
+        
+        for ip in TRUSTED_IPS:
+            print(sock.execute_command(ip, PORT, POST_BLOCK, payload = block_data_string, timeout = 1))
+            
         blockchain.publish_block(new_block)
         
         
-        print_block_data(new_block)
+        log_block_data(new_block)
 
-#Prints the insides of the entire block to the console
-def print_block_data(block):
+#Logs the entire block as json into the sample.json file in the 'Keys' directory
+def log_block_data(block):
     rootData = {}
     rootData["block_header"] = block.block_header
     rootData["block_size"] = block.BLOCK_SIZE
@@ -71,16 +79,13 @@ def print_block_data(block):
     for entry in transaction_list:
         transaction = entry.__dict__
         rootData["transactions"].append(transaction)
-    block_index = block.block_index
     
     json_data = json.dumps(rootData, indent = 4)
-    f = open("./Keys/sample.json","r")
-    current_data = f.read()
-    f = open("./Keys/sample.json", "w")
-    f.write(current_data + str('\n'+json_data))
-    f.close()
-    
-    
+    with open( os.path.join( KEY_PATH, LOG_FILE_NAME), 'a' ) as log_file:
+        log_file.write('\n' + str(json_data) + ',')
+        log_file.close()
+
+
 def get_pending_transactions():
     pass
 
@@ -108,7 +113,6 @@ if __name__ == "__main__":
         wallet = Wallet()
         
         if user_option == '1':
-            
             address_exists = wallet.check_key_existence()
             
             if not address_exists:
@@ -136,9 +140,6 @@ if __name__ == "__main__":
             genesis_required = True if (block_data is None or block_data == '') else False
             chain = Blockchain()
             mine(chain, miner_address, genesis_required)
-            
-            
-            pass
             
     
         elif user_option == '2':

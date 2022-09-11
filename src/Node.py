@@ -1,6 +1,6 @@
 
 import textwrap
-import socket
+import socket, pickle
 import sys, os
 sys.path.append(os.path.abspath("modules"))
 print(sys.path)
@@ -9,7 +9,6 @@ from Chain import Blockchain
 
 
 class Socket:
-    
     
     def __init__(self):
         self.SOCKET_IP = socket.gethostbyname(socket.gethostname())
@@ -20,13 +19,13 @@ class Socket:
     @staticmethod
     def execute_command(sock_ip, sock_port, command, **kwargs):
         with socket.socket( socket.AF_INET, socket.SOCK_STREAM) as s:
-            if "timeout" in kwargs:
-                s.settimeout(timeout)
+            if "timeout" in kwargs.keys():
+                s.settimeout(kwargs["timeout"])
             try:
                 requestData = {}
                 requestData["command"] = command
-                if kwargs["message_body"]:
-                    requestData["payload"] = message_body
+                if "payload" in kwargs.keys():
+                    requestData["payload"] = kwargs["payload"]
                 else:
                     requestData["payload"] = '' 
                     
@@ -45,7 +44,6 @@ class Socket:
         pass
         
         
-    
 #Command constants
 GET_CHAIN_DATA = "GET_CHAIN_DATA"
 GET_BLOCK_DATA = "GET_BLOCK_DATA"
@@ -83,7 +81,7 @@ if __name__ == "__main__":
             print("No response from the remote host!\n\n")
             continue
         finally:
-            chain = Blockchain() if (chain == None or chain == '') else chain
+            chain = Blockchain() if chain == None or chain == '' else chain
         
     
 
@@ -106,14 +104,15 @@ if __name__ == "__main__":
                         command = data_decoded["command"]
                         payload = data_decoded["payload"]
                             
-                            
+                        print("On main route!")
+                        
                         #Sends the data of the latest block
                         if command == GET_BLOCK_DATA:
                             last_block = chain.chain[-1]
                             conn.sendall( bytes(last_block, encoding="utf-8"))
                             break
                             
-                            #Sends pending transactions from the mempool
+                        #Sends pending transactions from the mempool
                         elif command == GET_PENDING_TRANSACTIONS:
                             conn.sendall( bytes(str(pending_transactions), encoding="utf-8"))
                             break
@@ -123,8 +122,12 @@ if __name__ == "__main__":
                             break
                             
                         elif command == POST_BLOCK:
-                            conn.sendall(bytes('S',encoding="utf-8"))
-                            print(data_decoded["payload"])
+                            block = pickle.loads( payload )
+                            if Blockchain.validate_block(block):
+                                chain.publish_block(block)
+                                response_message = "Block posted successfully!"
+                            conn.sendall(bytes(response_message, encoding="utf-8"))
+                            
                             continue
                         elif command == POST_TRANSACTION:
                             pending_transactions.append(data_decoded)
@@ -132,9 +135,11 @@ if __name__ == "__main__":
                             conn.sendall( bytes(SUCCESS, encoding="utf-8"))
                             continue
                         else:
-                            conn.sendall(bytes('', encoding="utf-8"))
+                            conn.sendall(bytes('NOT A VALID COMMAND', encoding="utf-8"))
                             continue
-                    except:
+                    except Exception as e:
+                        print("On exception route! Exception:{}".format(e))
+                        conn.sendall(bytes("\nINVALID COMMAND SYNTHAX", encoding = "utf-8"))
                         continue
 
 

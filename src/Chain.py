@@ -5,6 +5,7 @@ import random
 import time
 
 from ecdsa import SigningKey, NIST256p, VerifyingKey
+from CustomEncryption import *
 
 
 
@@ -13,26 +14,34 @@ class Blockchain:
     def __init__(self):
         self.chain = []
         self.pending_transactions = []
-        self.difficulty = 5
+        self.difficulty = 4
         self.block_reward = 100
         self.VERSION = "1.0; PollyChain"
     
     #Generates the genesis block with half-hardcoded data
     def generate_genesis_block(self, address):
-        prev_block_hash = hash.sha256(b'GENESIS BLOCK. STAY YOUNG AND INVINCIBLE.').hexdigest()
+        BLOCK_TEXT = "GENESIS BLOCK. STAY YOUNG AND INVINCIBLE."
+        nonce = 0
+        while True:
+            nonce_string = str(nonce)
+            hashed_nonce = double_hash( nonce_string )
+            current_hash = double_hash( nonce_string + BLOCK_TEXT )
+            if current_hash.startswith('0' * self.difficulty, 0, self.difficulty):
+                break
+            nonce += 1
         timestamp = str(datetime.now())
         amount = self.block_reward
         transactions = [Transaction("SYSTEM", address, amount)]
         transaction_count = len(transactions)
         merkle_root = Block.get_merkle_root(transactions)
-        nonce = 0
         block_index = len( self.chain ) + 1
-        genesis_block = Block(self.VERSION, prev_block_hash, merkle_root, transactions, transaction_count, self.difficulty, timestamp, nonce, block_index)
+        genesis_block = Block(self.VERSION, current_hash, merkle_root, transactions, transaction_count, self.difficulty, timestamp, nonce, block_index)
         return genesis_block
     
-    def generate_block(self, transactions, nonce):
-        hashed_nonce = hash.sha256(bytes(str(nonce), encoding = "utf-8")).hexdigest()
-        prev_block_hash = hash.sha256(bytes( hashed_nonce + str(self.chain[-1].block_header), encoding="utf-8")).hexdigest()
+    def generate_block(self, transactions, block_result):
+        nonce = block_result["nonce"]
+        solution = block_result["solution"]
+        prev_block_hash = solution
         timestamp = str(datetime.now())
         merkle_root = Block.get_merkle_root(transactions)
         transaction_count = len(transactions)
@@ -46,43 +55,50 @@ class Blockchain:
         return random.randint(0, (2**31))
     
     def __target(self, previous_block_hash):
-        nonce = self.generate_nonce()
-        hashed_nonce = hash.sha256( bytes( str(nonce), encoding = "utf-8")).hexdigest()
-        target = hash.sha256( bytes(str( hashed_nonce + previous_block_hash), encoding = "utf-8")).hexdigest()
-                 
+        nonce = 0
+        while True:
+            nonce_string = str(nonce)
+            hashed_nonce = double_hash( nonce_string )
+            target = double_hash( hashed_nonce + previous_block_hash)
+            if target.startswith('0'*self.difficulty, 0, self.difficulty):
+                break
+                
+            nonce += 1
+            
         return target
     
     def mine(self):
-        #Initialize random parameters for the target hash
-        hash_found = False
+        print("Mining the block...")
                 
         #Initialize random parameters for the nonce
-        nonce = 0
-        header_hash = self.chain[-1].block_header["previous_block"]
+        header_hash = double_hash(str(self.chain[-1].block_header))
         print("Header hash:{}".format(header_hash))
+        print(str(self.chain[-1].block_header))
         target = self.__target(header_hash)
 
         #If current target is <= than previous target hash - the puzzle is solved and the block can be appended to the blockchain
-        while not hash_found:
-            hashed_nonce = hash.sha256( bytes( str(nonce), encoding = "utf-8")).hexdigest()
-            current_hash = hash.sha256(bytes(str(hashed_nonce + header_hash), encoding="utf-8")).hexdigest()
+        while True:
+            nonce = self.generate_nonce()
+            nonce_string = str( nonce )
+            hashed_nonce = double_hash( nonce_string )
+            current_hash = double_hash( hashed_nonce + header_hash)
             
             if current_hash.startswith('0' * self.difficulty, 0, self.difficulty) and (int(current_hash, base = 16) <= int(target, base = 16)):
                 print("\nCurrent hash: {}".format(current_hash))
-                hash_found = True
                 break
-            nonce += 1
-        
-        
-
+            
         return {"nonce":nonce, "target":target, "solution":current_hash}
-    
     
     def transmit_block(self):
         pass
     
     def publish_block(self, block):
         self.chain.append(block)
+        
+    #Method used to validate the passed block's nonce + header hash. Dummy for now
+    @staticmethod
+    def validate_block( block ):
+        True
     
 class Block(Blockchain):
     
@@ -98,12 +114,13 @@ class Block(Blockchain):
         self.transaction_count = transaction_count
         self.block_index = block_index
         self.block_header = self.populate_block_header()
+        self.block_index = block_index
         
         #Constants
         self.BLOCK_SIZE = "1024"
         
     def populate_block_header(self):
-        block_header = {"version":self.version, "previous_block": self.prev_block_hash, "merkle_root":self.merkle_root, "timestamp":self.timestamp, "difficulty":self.difficulty, "nonce":self.nonce}
+        block_header = {"version":self.version, "block_index": self.block_index, "previous_block": self.prev_block_hash, "merkle_root":self.merkle_root, "timestamp":self.timestamp, "difficulty":self.difficulty, "nonce":self.nonce}
         return block_header
     
         

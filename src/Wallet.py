@@ -1,13 +1,13 @@
 from datetime import datetime
 import json, pathlib, textwrap
 import os, sys
-sys.path.append(os.path.abspath("modules"))
 
 from ecdsa import SigningKey, NIST256p, VerifyingKey
-from FileModule import File
 
 
-class Wallet(File):
+
+
+class Wallet():
     
     def __init__(self):
         self.KEY_PATH = os.path.join(pathlib.Path().resolve(), "Keys")
@@ -17,29 +17,6 @@ class Wallet(File):
     
     
     ###### GETTERS ######
-    def fetch_vk_hex(self):
-        key_exists = self.check_key_existence()
-        if key_exists:
-            with open( os.path.join( self.KEY_PATH, "keys.json"), 'r') as key_file:
-                file_body = json.load( key_file)
-                vk = file_body["PublicKey"]
-                key_file.close()
-        else:
-            vk = ''
-                
-        return vk
-    
-    def fetch_sk_hex(self):
-        key_exists = self.check_key_existence()
-        if key_exists:
-            with open( os.path.join( self.KEY_PATH, "keys.json"), 'r') as key_file:
-                file_body = json.load( key_file)
-                sk = file_body["PrivateKey"]
-                key_file.close()
-        else:
-            sk = ''
-                
-        return sk
     
     def get_vk_hex(self):
         return self.public_key
@@ -49,6 +26,7 @@ class Wallet(File):
     
     ##### ######
     
+    ###### SETTERS ######
     def create_key_pair(self):
         self.private_key = SigningKey.generate(curve = self.CURVE)
         self.public_key = self.private_key.verifying_key
@@ -61,7 +39,8 @@ class Wallet(File):
         
         
         #Check whether the 'Keys' directory exists, create if doesn't
-        File.create_or_validate( self.KEY_PATH )
+        if not os.path.isdir( self.KEY_PATH ):
+            os.mkdir( self.KEY_PATH )
         
         with open( os.path.join(self.KEY_PATH, "keys.json"), 'w') as key_file:
             bodyDict = {}
@@ -71,17 +50,45 @@ class Wallet(File):
             key_file.write(json.dumps(bodyDict, indent = 4))
             key_file.close()
     
-    #Validates the integrity of an address and records it to the keys.json file
+    #Assigns custom validated vk presented by user
     def set_custom_vk( self, custom_vk ):
         byte_key = bytes.fromhex( custom_vk )
-        self.public_key = VerifyingKey.from_string( custom_vk, self.CURVE )
+        self.public_key = VerifyingKey.from_string( byte_key, self.CURVE )
         
-    #Checks if a key exists in keys.json directory
+    ##### ######
+    
+    def fetch_vk_hex(self):
+        key_exists = self.check_key_existence()
+        if key_exists:
+            with open( os.path.join( self.KEY_PATH, "keys.json"), 'r') as key_file:    
+                file_body = json.load( key_file )
+                vk = file_body["PublicKey"]
+                key_file.close()
+        else:
+            vk = None
+                
+        return vk
+    
+    def fetch_sk_hex(self):
+        key_exists = self.check_key_existence()
+        if key_exists:
+            with open( os.path.join( self.KEY_PATH, "keys.json"), 'r') as key_file:
+                file_body = json.load( key_file )
+                sk = file_body["PrivateKey"]
+                key_file.close()
+        else:
+            sk = None
+                
+        return sk
+    
+    #Checks if a 'keys.json' file exists in the 'Keys' directory
     def check_key_existence(self):
         KEY_FILE_NAME = "keys.json"
-        result = File.check_file_existence( self.KEY_PATH, KEY_FILE_NAME )
+        file_dir = os.path.join( self.KEY_PATH, KEY_FILE_NAME)
+        result = os.path.isfile( file_dir )
         return True if result else False
-        
+    
+    #Validates the format of the passed public key
     @staticmethod
     def validate_public_key( key ):
         try:
@@ -94,15 +101,18 @@ class Wallet(File):
         return valid
 
 
-            
-
 if __name__ == "__main__":
+    
+    USER_OPTIONS = ['0', '1', '2', '3', '4']
     current_option = 0
-    user_options = ['0', '1', '2', '3']
-    print(
-        """ ***************** Welcome to the PollyChain 1.0! *****************\n
+    wallet = Wallet()
+    wallet_address = wallet.fetch_vk_hex()
+    
+    os.system('cls')
+    print(textwrap.dedent("""
+    ***************** Welcome to the PollyChain 1.0! *****************\n
 What would you like to do? Press and enter the according number on your keyboard!
-        """  
+        """)
     )
     
     while current_option not in [1, 2]:
@@ -110,7 +120,9 @@ What would you like to do? Press and enter the according number on your keyboard
             """
 1. Create a wallet.
 2. Log into an existing wallet
-3. Exit
+3. Send coins
+4. Check account balance
+5. Exit
 
             """)
         
@@ -142,7 +154,6 @@ What would you like to do? Press and enter the according number on your keyboard
             choice = str(input())
             
             if choice in ['Y', 'y']:
-                wallet = Wallet()
                 wallet.create_key_pair()
                 wallet.save_keys()
                 
@@ -159,11 +170,13 @@ What would you like to do? Press and enter the according number on your keyboard
                 print( "Incorrect input!")
                 pass
                 
-        
-        elif( user_option == '2'):
+        elif user_option == '2':
             pass
         
-        elif( user_option == '3'):
+        elif user_option == '3':
+            pass
+        
+        elif user_option == '4':
             sys.exit()
     
 
