@@ -1,9 +1,11 @@
 from datetime import datetime
 import json, pathlib, textwrap
-import os, sys
+import os, sys, pickle
 
 from ecdsa import SigningKey, NIST256p, VerifyingKey
 
+from Node import Socket
+from Chain import Transaction
 
 
 
@@ -18,10 +20,10 @@ class Wallet():
     
     ###### GETTERS ######
     
-    def get_vk_hex(self):
+    def get_vk(self):
         return self.public_key
 
-    def get_sk_hex(self):
+    def get_sk(self):
         return self.private_key
     
     ##### ######
@@ -36,7 +38,6 @@ class Wallet():
         #Converting key pairs to hexadecimal strings
         sk_string = self.private_key.to_string().hex()
         vk_string = self.public_key.to_string().hex()
-        
         
         #Check whether the 'Keys' directory exists, create if doesn't
         if not os.path.isdir( self.KEY_PATH ):
@@ -64,6 +65,11 @@ class Wallet():
                 file_body = json.load( key_file )
                 vk = file_body["PublicKey"]
                 key_file.close()
+            try:
+                byte_key = bytes.fromhex( vk )
+                vk = VerifyingKey.from_string( byte_key, self.CURVE )
+            except:
+                vk = None
         else:
             vk = None
                 
@@ -76,6 +82,13 @@ class Wallet():
                 file_body = json.load( key_file )
                 sk = file_body["PrivateKey"]
                 key_file.close()
+            
+            try:
+                byte_key = bytes.fromhex( sk )
+                sk = VerifyingKey.from_string( byte_key, self.CURVE )
+            except:
+                sk = None
+                
         else:
             sk = None
                 
@@ -87,6 +100,7 @@ class Wallet():
         file_dir = os.path.join( self.KEY_PATH, KEY_FILE_NAME)
         result = os.path.isfile( file_dir )
         return True if result else False
+    
     
     #Validates the format of the passed public key
     @staticmethod
@@ -103,8 +117,27 @@ class Wallet():
 
 if __name__ == "__main__":
     
-    USER_OPTIONS = ['0', '1', '2', '3', '4']
-    current_option = 0
+    #Command constants
+    GET_CHAIN_DATA = "GET_CHAIN_DATA"
+    GET_BLOCK_DATA = "GET_BLOCK_DATA"
+    GET_PENDING_TRANSACTIONS = "GET_PENDING_TRANSACTIONS"
+    POST_TRANSACTION = "POST_TRANSACTION"
+    POST_BLOCK = "POST_BLOCK"
+
+    #Command response constants
+    RESPONSE_SUCCESS = "S"
+    RESPONSE_FAILURE = "F"
+    
+    #Networking constants
+    sock = Socket()
+    USER_IP = sock.SOCKET_IP
+    TRUSTED_IPS = ["172.20.10.4"]
+    PORT = 8330
+    
+    #Other constants
+    USER_OPTIONS = ['0', '1', '2', '3', '4', '5']
+    
+    #Variables
     wallet = Wallet()
     wallet_address = wallet.fetch_vk_hex()
     
@@ -115,7 +148,7 @@ What would you like to do? Press and enter the according number on your keyboard
         """)
     )
     
-    while current_option not in [1, 2]:
+    while True:
         print(
             """
 1. Create a wallet.
@@ -128,7 +161,7 @@ What would you like to do? Press and enter the according number on your keyboard
         
         user_option = str(input())
         
-        if user_option not in user_options:
+        if user_option not in USER_OPTIONS:
             print("\nIncorrect input! Please choose again.")
         
         elif user_option == '0' :
@@ -171,12 +204,49 @@ What would you like to do? Press and enter the according number on your keyboard
                 pass
                 
         elif user_option == '2':
+            new_address = str(input("Please specify your wallet's address:\n"))
+            valid_address = Wallet.validate_public_key( new_address )
+            
+            if not valid_address:
+                print("The address you've entered is in incorrect format!\nPlease re - check it and try again!")
+                continue
+            
+            wallet.set_custom_vk( new_address )
+            wallet.save_keys()
+            print("New address saved successfully!")
             pass
         
         elif user_option == '3':
+            print("The address in your 'keys.json' file will be used for the transaction.\n")
+            reciever_address = str(input("Please enter reciever's address:\n"))
+            private_key = wallet.get_sk()
+            valid_address = Wallet.validate_public_key( reciever_address )
+            if not valid_address:
+                print("The address you've entered is in incorrect format!\nPlease re - check it and try again!")
+                continue
+            
+            correct_amount = False
+            while not correct_amount:
+                amount = str(input("Please enter the amount you want to send:"))
+                if not amount.isnumeric():
+                    print("The format of the amount is incorrect!\nPlease enter a whole number!")
+                    continue
+                correct_amount = True
+                
+            transaction = Transaction(wallet_address, reciever_address, amount)
+            
+            print("Private key from the 'keys.json' file will be used for signing the transaction")
+            
+            #Signed transaction will be sent along with the pure transaction payload and verified afterwars
+            signature = private_key.sign( pickle.dumps(transaction) )
+            payload = {"transaction" : transaction, "signature":signature }
+            sock.execute_command(USER_IP, PORT, POST_TRANSACTION, payload = payload, timeout = 2)
+            
+            pass
+        elif user_option == '4':
             pass
         
-        elif user_option == '4':
+        elif user_option == '5':
             sys.exit()
     
 
