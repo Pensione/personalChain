@@ -1,8 +1,6 @@
-from datetime import date, datetime
-from email import header
+from datetime import date, datetime, timedelta
 import hashlib as hash
 import random
-import time
 
 from ecdsa import SigningKey, NIST256p, VerifyingKey
 from CustomEncryption import *
@@ -72,7 +70,7 @@ class Blockchain:
                 
         #Initialize random parameters for the nonce
         header_hash = double_hash(str(self.chain[-1].block_header))
-        print("Header hash:{}".format(header_hash))
+        print("Header hash:{}\n".format(header_hash))
         print(str(self.chain[-1].block_header))
         target = self.__target(header_hash)
 
@@ -89,11 +87,25 @@ class Blockchain:
             
         return {"nonce":nonce, "target":target, "solution":current_hash}
     
-    def transmit_block(self):
-        pass
+    def adjust_difficulty(self, last_block):
+        if len( self.chain ) > 1:
+            previous_block = self.chain[-2]
+            date_format = "%Y-%m-%d %H:%M:%S.%f"
+            
+            prev_block_date = datetime.strptime(previous_block.timestamp, date_format)
+            last_block_date = datetime.strptime(last_block.timestamp, date_format)
+            
+            if last_block_date - prev_block_date < timedelta(seconds = 30):
+                self.difficulty += 1
+            
+            elif last_block_date - prev_block_date > timedelta(seconds = 30):
+                self.difficulty -= 1
     
     def publish_block(self, block):
         self.chain.append(block)
+        self.adjust_difficulty(block)
+        
+    
         
     #Method used to validate the passed block's nonce + header hash. Dummy for now
     @staticmethod
