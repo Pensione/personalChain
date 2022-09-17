@@ -5,6 +5,7 @@ import sys, os
 
 from Chain import Blockchain
 from CustomEncryption import *
+from ecdsa import SigningKey, NIST256p, VerifyingKey
 
 class Socket:
     
@@ -36,11 +37,6 @@ class Socket:
                 data_decoded = ''
             s.close()
             return data_decoded
-    
-    @staticmethod
-    def set_listening_socket(sock_ip, sock_port):
-        pass
-        
         
 #Command constants
 GET_CHAIN_DATA = "GET_CHAIN_DATA"
@@ -108,23 +104,26 @@ if __name__ == "__main__":
                             
                         print("On main route!")
                         
-                        #Sends the data of the latest block
+                        #Returns the data of the latest block the node stores
                         if command == GET_BLOCK_DATA:
                             last_block = chain.chain[-1]
                             conn.sendall( bytes(last_block, encoding="utf-8"))
                             break
                             
-                        #Sends pending transactions from the mempool
+                        #Returns all the pending transactions from the mempool
                         elif command == GET_PENDING_TRANSACTIONS:
                             conn.sendall( bytes(str(pending_transactions), encoding="utf-8"))
                             break
-                            
+                        
+                        #Returns the data of the chain the node stores
                         elif command == GET_CHAIN_DATA:
                             conn.sendall( bytes(str(chain_data), encoding = "utf-8"))
                             break
                             
+                        #Recieves a block
+                        #If valid -> block is added to the node's chain version and transmitted to other nodes
                         elif command == POST_BLOCK:
-                            #Formats the payload data into an appropriate object structure
+                            
                             block = pickle.loads( payload )
                             
                             if Blockchain.validate_block(block):
@@ -138,23 +137,32 @@ if __name__ == "__main__":
                             break
                         
                         elif command == POST_TRANSACTION:
-                            payload = eval( payload )
                             transaction = pickle.loads( payload["transaction"])
-                            sender = transaction.sender
                             signature = payload["signature"]
-                            vk = vk_hex_to_bytes(sender, NIST256p)
-                            valid = vk.verify( signature, payload["transaction"] )
-                            response = RESPONSE_SUCCESS if valid else RESPONSE_FAILURE
+                            
+                            sender = transaction.sender
+                            sender_pk = vk_hex_to_bytes(sender, NIST256p)
+
+                            #Verifies the sent signature with the sender's public key
+                            valid = sender_pk.verify( signature, payload["transaction"] )
+                            if valid:
+                                response = RESPONSE_SUCCESS
+                                pending_transactions.append( transaction )
+                            else:
+                                response = RESPONSE_FAILURE
+                                
                             print(f'\nSender:{transaction.sender}, reciever:{transaction.reciever}, amount:{transaction.amount}, valid:{valid}')
+                            
                             conn.sendall( bytes(response, encoding="utf-8"))
-                            continue
+                            break
+                        
                         else:
                             conn.sendall(bytes('NOT A VALID COMMAND', encoding="utf-8"))
-                            continue
+                            break
                     except Exception as e:
                         print("On exception route! Exception:{}".format(e))
                         conn.sendall(bytes("\nINVALID COMMAND SYNTHAX", encoding = "utf-8"))
-                        continue
+                        break
 
 
        
