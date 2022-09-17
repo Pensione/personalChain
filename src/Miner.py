@@ -20,7 +20,7 @@ LOG_FILE_NAME = "sample.json"
 #Networking constants
 sock = Socket()
 MINER_IP = sock.SOCKET_IP
-TRUSTED_IPS = [MINER_IP, "192.168.81.82", "192.168.81.87", "192.168.81.175", "172.20.10.4"]
+TRUSTED_IPS = [ "192.168.1.104"]
 PORT = 8330
 
 #Command constants
@@ -136,7 +136,7 @@ if __name__ == "__main__":
             miner_address = wallet.get_vk_hex()
             
             #Fetching the initial chain data, to determine whether a genesis block should be created
-            block_data = sock.execute_command(MINER_IP, PORT, GET_BLOCK_DATA)
+            block_data = None #sock.execute_command(MINER_IP, PORT, GET_BLOCK_DATA)
             genesis_required = True if (block_data is None or block_data == '') else False
             chain = Blockchain()
             mine(chain, miner_address, genesis_required)
