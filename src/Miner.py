@@ -113,6 +113,7 @@ if __name__ == "__main__":
         wallet = Wallet()
         
         if user_option == '1':
+            os.system('cls')
             address_exists = wallet.check_key_existence()
             
             if not address_exists:
